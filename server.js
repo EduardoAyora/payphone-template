@@ -12,7 +12,7 @@ const productsList = [
 
 const paymentOrders = []
 
-let contador = 25
+let contador = 30
 
 app.use(express.json())
 app.set('view engine', 'ejs')
@@ -56,6 +56,7 @@ app.post('/preparar-pago', async (req, res) => {
           currency: 'USD',
           clientTransactionId: contador,
           responseUrl: 'http://localhost:3000/response',
+          cancellationUrl: 'http://localhost:3000/',
           lineItems: [
             {
               productName: 'Uno',
@@ -78,7 +79,7 @@ app.post('/preparar-pago', async (req, res) => {
       if ('message' in response) throw new Error(response.message)
       throw new Error('No ha sido posible comunicarse con PayPhone')
     }
-    paymentOrders.push({ clientTransactionId: contador })
+    paymentOrders.push({ clientTransactionId: contador, products })
     res.json(response)
   } catch (e) {
     console.log(e.message)
@@ -92,24 +93,38 @@ app.post('/confirm', async (req, res) => {
   const id = req.body.id
   const clientTxId = req.body.clientTxId
 
-  const responseData = await fetch(
-    'https://pay.payphonetodoesposible.com/api/button/V2/Confirm',
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        id,
-        clientTxId,
-      }),
+  try {
+    const responseData = await fetch(
+      'https://pay.payphonetodoesposible.com/api/button/V2/Confirm',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id,
+          clientTxId,
+        }),
+      }
+    )
+    const response = await responseData.json()
+    if (!responseData.ok) {
+      if ('message' in response) throw new Error(response.message)
+      throw new Error('No ha sido posible confirmar el pago con PayPhone')
     }
-  )
-  const response = await responseData.json()
-  if (response.statusCode === 3 && response.transactionStatus === 'Approved') {
+    const purchase = paymentOrders.find(
+      ({ clientTransactionId }) =>
+        clientTransactionId == response.clientTransactionId
+    )
+    console.log('purchase', JSON.stringify(purchase, null, 2))
+    res.json(response)
+  } catch (e) {
+    console.log(e.message)
+    res.status(400).json({
+      message: e.message,
+    })
   }
-  res.json(response)
 })
 
 app.listen(3000, () => {

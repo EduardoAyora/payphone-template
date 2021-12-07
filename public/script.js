@@ -33,5 +33,7 @@ async function response() {
     }),
   })
   const response = await responseData.json()
+  if (!responseData.ok) return alert(response.message)
   console.log(response)
+  alert('Su compra se ha realizado con éxito')
 }
